@@ -76,14 +76,12 @@ let _encode ?(kind=Isa_l) ~k ~m ~w data_ptrs parity_ptrs size =
               data_ptrs parity_ptrs
               size)
       | Isa_l ->
-         let rsm =
-           Isa_l.gen_rs_vandermonde_matrix_jerasure ~k ~m
-           |> bigarray_start array1
-         in
+         let rsm = Isa_l.gen_rs_vandermonde_matrix_jerasure ~k ~m in
          let gftbls =
            Isa_l.init_tables
              ~k ~rows:(k + m)
              (rsm
+              |> bigarray_start array1
               |> to_voidp |> from_voidp uchar
               |> fun x -> x +@ k*k) in
          Lwt_preemptive.detach
@@ -95,7 +93,9 @@ let _encode ?(kind=Isa_l) ~k ~m ~w data_ptrs parity_ptrs size =
               ~gftbls
               ~data_in:data_ptrs
               ~data_out:parity_ptrs)
-           ()
+           () >>= fun () ->
+         Sys.opaque_identity (rsm, gftbls, data_ptrs, parity_ptrs) |> ignore;
+         Lwt.return_unit
     end
 
 let encode ?kind ~k ~m ~w data parity size =
@@ -156,9 +156,8 @@ let decode ?(kind=Isa_l) ~k ~m ~w erasures data parity size =
                (res, erased')))
        in
 
-       let rsm = Ctypes.(bigarray_start
-                           array1
-                           (Isa_l.rs_vandermonde_matrix_from_jerasure ~k ~rows:k dm)) in
+       let rsm' = (Isa_l.rs_vandermonde_matrix_from_jerasure ~k ~rows:k dm) in
+       let rsm = Ctypes.(bigarray_start array1 rsm') in
 
        let all_fragments = List.append data parity in
 
@@ -199,7 +198,12 @@ let decode ?(kind=Isa_l) ~k ~m ~w erasures data parity size =
          ~kind ~k ~m ~w
          (shared_buffer_list_to_carray data)
          (shared_buffer_list_to_carray parity)
-         size
+         size >>= fun () ->
+
+       Sys.opaque_identity (erasures, data, parity,
+                            dm, erased, rsm', rsm,
+                            gftbls) |> ignore;
+       Lwt.return_unit
     end
   else
     Lwt.return ()
