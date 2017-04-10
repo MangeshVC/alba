@@ -65,7 +65,7 @@ let _encode ?(kind=Isa_l) ~k ~m ~w data_ptrs parity_ptrs size =
     Lwt.return_unit
   else
     begin
-      match kind with
+      match Jerasure with
       | Jerasure ->
          with_free_lwt
            (fun () -> Jerasure.reed_sol_vandermonde_coding_matrix ~k ~m ~w)
@@ -111,7 +111,7 @@ let encode' ?kind ~k ~m ~w data parity size =
 let decode ?(kind=Isa_l) ~k ~m ~w erasures data parity size =
   if erasures <> [ -1 ]
   then begin
-    match kind with
+    match Jerasure with
     | Jerasure ->
        with_free_lwt
          (fun () -> Jerasure.reed_sol_vandermonde_coding_matrix ~k ~m ~w)
